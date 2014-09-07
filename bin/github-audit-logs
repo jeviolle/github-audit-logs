@@ -1,0 +1,158 @@
+#!/usr/bin/env ruby
+#
+# Rick Briganti <jeviolle@newaliases.org>
+# 
+require 'rubygems'
+require 'mechanize'
+require 'nokogiri'
+require 'optparse'
+require 'sqlite3'
+
+options = {}
+OptionParser.new do |opts|
+  opts.banner = "Usage: github_audit_log.rb [options]"
+  opts.on("-u USERNAME","--username USERNAME","Github username") do |v|
+    options[:user] = v
+  end
+  opts.on("-p PASSWORD","--password PASSWORD","Github password") do |v|
+    options[:pass] = v
+  end
+  opts.on("-o ORG","--organization ORG","Github organization") do |v|
+    options[:org] = v
+  end
+  opts.on('-s', '--sqlite-file FILE', 'SQLite output file') do |v| 
+    options[:db] = v 
+  end
+end.parse!
+
+unless options[:user] and options[:pass] and options[:org] and options[:db]
+  puts "Missing required parameter"
+  exit 1
+end
+
+def msg_and_exit(msg)
+  puts msg
+  exit 1
+end
+
+# grep out the next page if one exists
+def get_next_page(html)
+  html.children[1].each do |i|
+    if i[1] =~ /^https/
+      return i[1]
+    end
+  end
+end
+
+def parse_audit_log(html)
+  results = []
+  # filter down to each row of the audit log table
+  html.css('li[class~="table-list-item member-list-item audit-log-item"]').each do |row|
+    username = row.css('span[class~="member-username"]').children.text
+    action = row.css('div[class~="audit-action-info"]').text.strip
+    details = row.css('div[class~="table-list-cell"]')
+    country = details[1].children.text.strip
+    type = details[2].children.text.strip
+    timestamp = details[3].children.text.strip
+
+    results.push({
+      :timestamp => timestamp, 
+      :username => username, 
+      :action => action, 
+      :country => country, 
+      :type => type
+    })
+  end
+
+  # update the database
+  results.each do |i|
+    update_db(i[:timestamp],i[:username],i[:action],i[:country],i[:type])
+  end 
+end
+
+def get_audit_log(agent, url)
+  begin
+    # go to audit log page
+    agent.get(url) do |audit_page|
+      html_doc = Nokogiri::HTML(audit_page.body)
+
+      # grab the audit table for parsing
+      audit_table = html_doc.css('ul[class~="table-list table-list-bordered member-listing security-audit-log"]')
+      parse_audit_log(audit_table)
+
+      # grab pagination info to determine if extra pages need parsing
+      pagination = html_doc.css('div[class~="pagination"]')
+      next_page = get_next_page(pagination)
+      get_audit_log(agent, next_page) if next_page =~ /^https/
+    end
+  rescue Exception => e
+    msg_and_exit "Please check your credentials or organization name: #{e}"
+  end
+end
+
+def login(user,pass)
+  a = Mechanize.new
+  a.get('https://github.com/') do |page|
+    # click login page
+    login_page = a.click(page.link_with(:text => /Sign in/))
+
+    # form login
+    my_page = login_page.form_with(:action => '/session') do |f|
+      f.login = user
+      f.password = pass
+    end.click_button
+
+    return a
+  end
+end
+
+def init_sqlite
+  # attempt to create the table and ignore the exception is
+  # already exists else die for unknown reasons
+  begin
+    $dbh.execute <<-SQL
+    CREATE TABLE audit_log (
+      timestamp TEXT NOT NULL,
+      username TEXT NOT NULL,
+      action TEXT NOT NULL,
+      country TEXT NOT NULL,
+      type TEXT NOT NULL,
+      UNIQUE (timestamp, username, action, country, type) ON CONFLICT IGNORE
+    );
+    CREATE INDEX idx_audit_log on audit_log (timestamp, username, action, country, type);
+    SQL
+  rescue SQLite3::SQLException => e
+    unless e.to_s =~ /already exists/
+      msg_and_exit "[ERROR] Failed to create table or index, #{e}"
+    end
+  end
+
+  # make things faster for large updates
+  begin
+    $dbh.execute("PRAGMA synchronous=OFF")
+    $dbh.execute("PRAGMA journal_mode=OFF")
+  rescue Exception => e
+    puts "Failed to disable fsync(): #{e}"
+  end
+end
+
+def update_db(timestamp, username, action, country, type)
+  begin
+    stmt = $dbh.prepare <<-SQL
+    INSERT INTO audit_log (timestamp, username, action, country, type) 
+    VALUES ("#{timestamp}","#{username}","#{action}","#{country}","#{type}");
+    SQL
+
+    stmt.execute
+  rescue Exception => e
+    msg_and_exit "Failed to insert result: #{e}"
+  end
+end
+
+# Main
+# establish connection to sqlite file
+$dbh = SQLite3::Database.new(options[:db])
+init_sqlite
+
+# do all
+get_audit_log(login(options[:user],options[:pass]), 'https://github.com/orgs/' + options[:org] + '/audit-log')
