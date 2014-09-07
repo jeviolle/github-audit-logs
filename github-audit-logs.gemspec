@@ -4,8 +4,8 @@ require 'github-audit-logs/version'
 Gem::Specification.new 'github-audit-logs', GithubAuditLogs::VERSION do |s| 
   s.license = 'GPL-3.0'
   s.date  = '2014-09-01'
-  s.summary = 'Save github audit logs locally'
-  s.description = 'Save github audit logs as a local sqlite db'
+  s.summary = 'Create a local SQLite copy of your organizations Github audit logs'
+  s.description = 'Create a local SQLite copy of your organizations Github audit logs'
   s.files = `git ls-files`.split("\n") - %w[]
   s.author  = 'Rick Briganti'
   s.email = 'jeviolle@newaliases.org'

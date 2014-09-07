@@ -4,6 +4,11 @@
 
 **github-audit-logs** lets you create a local SQLite copy of your organizations Github audit logs. There doesn't appear to be a way to retrieve audit logs via the Github developer API. This gem utilizes the mechanize and nokogiri gems to scrape your organizations audit log page.
 
+## Installation
+```
+$ gem install github-audit-logs
+```
+
 ## Usage
 ```
 $ github-audit-logs -h
