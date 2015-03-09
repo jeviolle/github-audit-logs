@@ -3,7 +3,7 @@ require 'github-audit-logs/version'
 
 Gem::Specification.new 'github-audit-logs', GithubAuditLogs::VERSION do |s| 
   s.license = 'GPL-3.0'
-  s.date  = '2014-09-01'
+  s.date  = '2015-03-09'
   s.summary = 'Create a local SQLite copy of your organizations Github audit logs'
   s.description = 'Create a local SQLite copy of your organizations Github audit logs'
   s.files = `git ls-files`.split("\n") - %w[]

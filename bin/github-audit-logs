@@ -82,8 +82,10 @@ def get_audit_log(agent, url)
 
       # grab pagination info to determine if extra pages need parsing
       pagination = html_doc.css('div[class~="pagination"]')
-      next_page = get_next_page(pagination)
-      get_audit_log(agent, next_page) if next_page =~ /^https/
+      unless pagination.empty?
+        next_page = get_next_page(pagination)
+        get_audit_log(agent, next_page) if next_page =~ /^https/
+      end
     end
   rescue Exception => e
     msg_and_exit "Please check your credentials or organization name: #{e}"
