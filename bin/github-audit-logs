@@ -157,4 +157,4 @@ $dbh = SQLite3::Database.new(options[:db])
 init_sqlite
 
 # do all
-get_audit_log(login(options[:user],options[:pass]), 'https://github.com/orgs/' + options[:org] + '/audit-log')
+get_audit_log(login(options[:user],options[:pass]), 'https://github.com/organizations/' + options[:org] + '/settings/audit-log')
