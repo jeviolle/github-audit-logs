@@ -1,5 +1,5 @@
 module GithubAuditLogs
   ##
   # returns the version of this module
-  VERSION = '0.3'
+  VERSION = '0.4'
 end
